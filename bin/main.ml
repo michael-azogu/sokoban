@@ -23,7 +23,7 @@ let redraw f =
   f () ;
   restore screen
 
-let gamescreen level goto_mainscreen =
+let gamescreen n level goto_mainscreen =
   let render () =
     set_fill_color screen green ;
     fill_text screen level (50., 70.) ;
@@ -37,14 +37,14 @@ let gamescreen level goto_mainscreen =
     [
       on key_down ~run:(fun e ->
           match e.data.key with
-          | KeyB -> goto_mainscreen ()
+          | KeyB -> goto_mainscreen n ()
           | _ -> ()
           (* clear interval & closured resources *)
       );
     ]
 
-let mainscreen lvls play_level =
-  let cursor = ref 0 in
+let mainscreen at lvls play_level =
+  let cursor = ref at in
   let no_of_levels = List.length lvls in
 
   let render () =
@@ -71,7 +71,7 @@ let mainscreen lvls play_level =
               redraw render
           | KeyReturn ->
               let lvl = List.nth lvls !cursor in
-                play_level lvl
+                play_level !cursor lvl
           | _ -> ()
       );
     ]
@@ -80,9 +80,10 @@ let root () =
   let levels = [ "one"; "two"; "three"; "four" ] in
 
   (* bail if no levels *)
-  let rec goto_mainscreen () = mainscreen levels goto_gamescreen
-  and goto_gamescreen level = gamescreen level goto_mainscreen in
-    goto_mainscreen ()
+  let rec goto_gamescreen n level = gamescreen n level goto_mainscreen
+  and goto_mainscreen at () = mainscreen at levels goto_gamescreen in
+
+  goto_mainscreen 0 ()
 
 let () =
   show screen ;
