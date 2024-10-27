@@ -9,7 +9,7 @@ let () =
   Canvas.show screen ;
 
   let root () =
-    let levels = [ "one"; "two"; "three"; "four" ] in
+    let levels, errors = Levels.get () in
 
     if List.length levels > 0 then (
       let rec goto_gamescreen n level =

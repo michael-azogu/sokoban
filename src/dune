@@ -1,4 +1,4 @@
 (executable
  (public_name sokoban)
  (name main)
- (libraries ocaml-canvas))
+ (libraries core core_unix ocaml-canvas))

@@ -1,4 +1,9 @@
-open Printf
+open Core
+
+type file = {
+   bytes : Bytes.t;
+   filename : string;
+ }
 
 type direction =
    | N
@@ -6,22 +11,46 @@ type direction =
    | S
    | W
 
-let defualt_direction = W
-
 type entity =
    | Wall
    | Dock
    | Crate
-   | Keeper of direction
 
 type tile = entity list
 
 type warehouse = tile list
 
-(* defaults + extras *)
-let read_levels = '\\'
+type keeper = {
+   r : int;
+   c : int;
+   direction : direction;
+ }
 
-(*
+type level = {
+   rows : int;
+   cols : int;
+   keeper : keeper;
+   warehouse : warehouse;
+ }
+
+let wall = 1 lsl 0
+let dock = 1 lsl 1
+let crate = 1 lsl 2
+
+let default_direction = W
+
+let split_byte i = [ i lsr 4; i land 0xF ]
+
+let to_tile i =
+  let has x tile =
+    if i land x <> 0 then
+      [ tile ]
+    else
+      []
+  in
+    has wall Wall @ has dock Dock @ has crate Crate
+
+(**
 
  Sokoban Level File Format
  -------------------------
@@ -54,64 +83,97 @@ let read_levels = '\\'
    NB: 0 = absent , 1 = present
 
 *)
-
-let parse bytes =
+let parse { filename; bytes } =
   let nbytes = Bytes.length bytes in
 
-  if nbytes > 4 then (
-    let r, c, kr, kc =
-      ( Bytes.get_uint8 bytes 0,
-        Bytes.get_uint8 bytes 1,
-        Bytes.get_uint8 bytes 2,
-        Bytes.get_uint8 bytes 3
+  if nbytes <= 4 then
+    Error (filename ^ "\ndoesnt have enough data <= 4bytes")
+  else (
+    let rows, cols, kr, kc =
+      ( Bytes.get bytes 0 |> int_of_char,
+        Bytes.get bytes 1 |> int_of_char,
+        Bytes.get bytes 2 |> int_of_char,
+        Bytes.get bytes 3 |> int_of_char
       )
     in
 
+    let because pred msg acc =
+      if pred then
+        msg :: acc
+      else
+        acc
+    in
+    let krth, kcth = (kr + 1, kc + 1) in
     let reasons =
-      let because pred msg acc =
-        if pred = true then
-          msg :: acc
-        else
-          acc
-      in
-      let ord n =
-        let suffix =
-          let j, k = (n mod 10, n mod 100) in
-            if j = 1 && k <> 11 then
-              "st"
-            else if j = 2 && k <> 12 then
-              "nd"
-            else if j = 3 && k <> 13 then
-              "rd"
-            else
-              "th"
-        in
-          string_of_int n ^ suffix
-      in
-      let krth, kcth = (kr + 1, kc + 1) in
-        []
-        |> because (c = 0 || r = 0)
-           @@ sprintf
-                "- the warehouse cant have %d rows and %d columns"
-                r
-                c
-        |> because (krth > r)
-           @@ sprintf
-                "- the keeper's position on the (%s)row is beyond no-of-rows:(%d)"
-                (ord krth)
-                r
-        |> because (kcth > c)
-           @@ sprintf
-                "- the keeper's position on the (%s)column is beyond no-of-columns:(%d)"
-                (ord kcth)
-                c
+      []
+      |> because (cols = 0 || rows = 0)
+         @@ sprintf
+              "- the warehouse cant have %d rows and %d columns"
+              rows
+              cols
+      |> because (krth > rows)
+         @@ sprintf
+              "- the keeper's position on the (%s)row is beyond no-of-rows:(%d)"
+              (Utils.ord krth)
+              rows
+      |> because (kcth > cols)
+         @@ sprintf
+              "- the keeper's position on the (%s)column is beyond no-of-columns:(%d)"
+              (Utils.ord kcth)
+              cols
     in
 
     if List.is_empty reasons then (
-      let tile_bytes = Bytes.sub bytes 2 nbytes in
-        ()
+      let tile_bytes = Bytes.sub bytes ~pos:4 ~len:(nbytes - 4) in
+        Ok
+          {
+            rows;
+            cols;
+            keeper = { r = kr; c = kc; direction = default_direction };
+            warehouse =
+              List.take
+                (tile_bytes
+                |> Bytes.to_list
+                |> List.map ~f:int_of_char
+                |> List.concat_map ~f:split_byte
+                |> List.map ~f:to_tile
+                )
+                (rows * cols);
+          }
     ) else
-      (* try with raise *)
-      printf "parsing terminated:\n%s\n" (String.concat "\n" reasons)
-  ) else
-    ()
+      Error
+        (sprintf
+           "parsing terminated for %s:\n%s\n"
+           filename
+           (String.concat ~sep:"\n" reasons)
+        )
+  )
+
+let read_sokoban_level_files () =
+  let dir = Core_unix.getcwd () in
+    Stdlib.Sys.readdir dir
+    |> Array.to_list
+    |> List.filter ~f:(fun file ->
+           Filename.check_suffix file ".sokoban"
+       )
+    |> List.map ~f:(fun filename ->
+           let filename = dir ^ filename in
+           let channel = In_channel.create filename in
+           let len = Int.of_int64_exn (In_channel.length channel) in
+           let bytes = Bytes.create len in
+             In_channel.really_input_exn
+               channel
+               ~buf:bytes
+               ~pos:0
+               ~len ;
+             In_channel.close channel ;
+             { bytes; filename }
+       )
+
+let get () =
+  read_sokoban_level_files ()
+  |> List.partition_map ~f:(fun file ->
+         match parse file with
+         | Ok level -> First level
+         | Error reason -> Second reason
+     )

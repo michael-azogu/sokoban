@@ -2,16 +2,15 @@ open Event
 
 open OcamlCanvas.V1
 open OcamlCanvas.V1.Event
-open OcamlCanvas.V1.Canvas
-open OcamlCanvas.V1.Backend ;;
+open OcamlCanvas.V1.Canvas ;;
 
-init ()
+Backend.init ()
 
 (* center it 80% height & maintain aspect ratio *)
 
-let w, h = (ref 300, ref 300)
+let w, h = (ref 800, ref 600)
 
-let screen = create_onscreen ~size:(!w, !h) ~title:"Sokoban" ()
+let screen = create_onscreen ~size:(!w, !h) ~title:"sokoban" ()
 
 let redraw f =
   save screen ;
@@ -19,13 +18,13 @@ let redraw f =
   f () ;
   restore screen
 
-let mainscreen at lvls play_level =
+let mainscreen at levels play_level =
   let cursor = ref at in
-  let no_of_levels = List.length lvls in
+  let no_of_levels = List.length levels in
 
   let render () =
     set_fill_color screen Color.red ;
-    fill_text screen ("main " ^ List.nth lvls !cursor) (30., 30.) ;
+    fill_text screen ("main " ^ string_of_int (!cursor + 1)) (30., 30.) ;
     ()
   in
 
@@ -46,18 +45,14 @@ let mainscreen at lvls play_level =
               cursor := wrap (!cursor + 1) ;
               redraw render
           | KeyReturn ->
-              let lvl = List.nth lvls !cursor in
-                play_level !cursor lvl
+              let level = List.nth levels !cursor in
+                play_level !cursor level
           | _ -> ()
       );
     ]
 
 let gamescreen n level goto_mainscreen =
-  let render () =
-    set_fill_color screen Color.green ;
-    fill_text screen level (50., 70.) ;
-    ()
-  in
+  let render () = () in
 
   redraw render ;
 
