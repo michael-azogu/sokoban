@@ -1,11 +1,11 @@
-(* [@@@warning "-33"] *)
-
-open Event
+open Core
+open Events
 open Screens
 
 open OcamlCanvas.V1
 
 let () =
+  Images.load_images () ;
   Canvas.show screen ;
 
   let root () =
@@ -19,18 +19,15 @@ let () =
       in
         goto_mainscreen 0 ()
     ) else
-      print_endline "no levels present"
+      print_endline
+        ("no levels present\n" ^ String.concat ~sep:"\n" errors)
   in
 
   root () ;
 
-  let on_resize =
-    Events.on Event.resize ~run:(fun e ->
-        match e.data with
-        | nw, nh -> ((w := nw), (h := nh))
-    )
-  in
-
   let on_close = Events.on Event.close ~run:(fun _ -> exit 0) in
 
-  Backend.run (fun () -> ignore [ on_resize; on_close ])
+  Backend.run (fun () ->
+      Events.register [] ;
+      ignore [ on_close ]
+  )
