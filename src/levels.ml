@@ -1,10 +1,5 @@
 open Core
 
-type file = {
-   bytes : Bytes.t;
-   filename : string;
- }
-
 type direction =
    | N
    | E
@@ -12,6 +7,7 @@ type direction =
    | W
 
 type entity =
+   | Floor
    | Wall
    | Dock
    | Crate
@@ -33,22 +29,16 @@ type level = {
    warehouse : warehouse;
  }
 
+type file = {
+   bytes : Bytes.t;
+   filename : string;
+ }
+
 let wall = 1 lsl 0
 let dock = 1 lsl 1
 let crate = 1 lsl 2
 
 let default_direction = W
-
-let split_byte i = [ i lsr 4; i land 0xF ]
-
-let to_tile i =
-  let has x tile =
-    if i land x <> 0 then
-      [ tile ]
-    else
-      []
-  in
-    has wall Wall @ has dock Dock @ has crate Crate
 
 (**
 
@@ -123,6 +113,18 @@ let parse { filename; bytes } =
               cols
     in
 
+    let split_byte i = [ i lsr 4; i land 0xF ] in
+
+    let to_tile i =
+      let has x tile =
+        if i land x <> 0 then
+          [ tile ]
+        else
+          []
+      in
+        has wall Wall @ has dock Dock @ has crate Crate
+    in
+
     if List.is_empty reasons then (
       let tile_bytes = Bytes.sub bytes ~pos:4 ~len:(nbytes - 4) in
         Ok
@@ -150,7 +152,7 @@ let parse { filename; bytes } =
   )
 
 let read_sokoban_level_files () =
-  let dir = Core_unix.getcwd () in
+  let dir = Core_unix.getcwd () ^ "/" in
     Stdlib.Sys.readdir dir
     |> Array.to_list
     |> List.filter ~f:(fun file ->
